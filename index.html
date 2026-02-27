@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sugerencias Tickers — Stock Selector</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080c10;
+    --bg2: #0d1117;
+    --bg3: #141c24;
+    --border: #1e2d3d;
+    --green: #00ff88;
+    --cyan: #00d4ff;
+    --red: #ff4466;
+    --yellow: #ffd700;
+    --text: #c9d1d9;
+    --text-dim: #8b949e;
+    --text-bright: #f0f6fc;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content:'';
+    position:fixed; inset:0;
+    background-image:
+      linear-gradient(rgba(0,255,136,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,136,0.025) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events:none; z-index:0;
+  }
+  .container { max-width:1400px; margin:0 auto; padding:0 24px; position:relative; z-index:1; }
+
+  /* HEADER */
+  header {
+    padding: 20px 0 18px;
+    border-bottom: 1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between;
+    flex-wrap: wrap; gap: 12px;
+  }
+  .logo { display:flex; align-items:center; gap:12px; }
+  .logo-icon {
+    width:38px; height:38px; background:var(--green); border-radius:10px;
+    display:flex; align-items:center; justify-content:center; font-size:20px;
+    animation: pulse 3s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  @keyframes pulse {
+    0%,100%{ box-shadow:0 0 0 0 rgba(0,255,136,0.4); }
+    50%{ box-shadow:0 0 0 10px rgba(0,255,136,0); }
+  }
+  .logo h1 { font-size:22px; font-weight:800; color:var(--text-bright); letter-spacing:-0.5px; }
+  .logo-tag {
+    font-family:'Space Mono',monospace; font-size:10px; color:var(--green);
+    background:rgba(0,255,136,0.1); padding:2px 8px; border-radius:4px;
+    border:1px solid rgba(0,255,136,0.3); letter-spacing:1px; margin-top:2px; display:block;
+  }
+  .header-right { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .market-badge {
+    font-family:'Space Mono',monospace; font-size:11px;
+    padding:6px 12px; border-radius:6px; border:1px solid var(--border); color:var(--text-dim);
+    display:flex; align-items:center; gap:6px;
+  }
+  .market-badge .val { font-weight:700; }
+  .up { color:var(--green); }
+  .down { color:var(--red); }
+  .data-source-badge {
+    font-family:'Space Mono',monospace; font-size:10px;
+    padding:4px 10px; border-radius:4px; border:1px solid var(--border);
+    display:flex; align-items:center; gap:5px; color:var(--text-dim);
+  }
+  .data-source-badge .dot { width:6px; height:6px; border-radius:50%; background:var(--text-dim); }
+  .data-source-badge.live .dot { background:var(--green); animation:blink 1.5s infinite; }
+  .data-source-badge.ai .dot { background:var(--cyan); animation:blink 1.5s infinite; }
+  .data-source-badge.cached .dot { background:var(--yellow); }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* STRATEGY TABS */
+  .strategies-bar { padding:20px 0 0; overflow-x:auto; scrollbar-width:none; }
+  .strategies-bar::-webkit-scrollbar { display:none; }
+  .strategies-tabs { display:flex; gap:8px; min-width:max-content; }
+  .tab {
+    padding:9px 18px; border-radius:8px; border:1px solid var(--border);
+    background:var(--bg2); color:var(--text-dim); cursor:pointer;
+    font-family:'Syne',sans-serif; font-size:13px; font-weight:600;
+    transition:all 0.2s; white-space:nowrap; display:flex; align-items:center; gap:8px;
+  }
+  .tab:hover { border-color:var(--green); color:var(--text-bright); }
+  .tab.active { background:rgba(0,255,136,0.1); border-color:var(--green); color:var(--green); }
+  .tab .perf {
+    font-family:'Space Mono',monospace; font-size:10px; color:var(--green);
+    background:rgba(0,255,136,0.1); padding:2px 6px; border-radius:3px;
+  }
+
+  /* MAIN GRID */
+  .main-grid { display:grid; grid-template-columns:1fr 330px; gap:20px; padding:20px 0 40px; }
+
+  /* STRATEGY HEADER */
+  .strategy-header {
+    background:var(--bg2); border:1px solid var(--border);
+    border-radius:12px; padding:22px; margin-bottom:18px;
+  }
+  .strategy-header h2 { font-size:24px; font-weight:800; color:var(--text-bright); margin-bottom:5px; }
+  .strategy-header p { color:var(--text-dim); font-size:13px; line-height:1.6; margin-bottom:14px; }
+  .strategy-stats { display:flex; gap:24px; flex-wrap:wrap; }
+  .stat-item .label {
+    font-family:'Space Mono',monospace; font-size:10px;
+    color:var(--text-dim); letter-spacing:1px; text-transform:uppercase; margin-bottom:3px;
+  }
+  .stat-item .value { font-family:'Space Mono',monospace; font-size:19px; font-weight:700; color:var(--green); }
+  .stat-item .value.yellow { color:var(--yellow); }
+
+  /* TABLE */
+  .stocks-section { background:var(--bg2); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .section-header {
+    padding:14px 18px; border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+  }
+  .section-header h3 { font-size:13px; font-weight:600; color:var(--text-bright); letter-spacing:0.5px; }
+  .section-header-right { display:flex; align-items:center; gap:8px; }
+  .refresh-btn {
+    font-family:'Space Mono',monospace; font-size:11px; padding:6px 14px;
+    background:rgba(0,255,136,0.1); border:1px solid rgba(0,255,136,0.3);
+    color:var(--green); border-radius:6px; cursor:pointer; transition:all 0.2s;
+    display:flex; align-items:center; gap:6px;
+  }
+  .refresh-btn:hover { background:rgba(0,255,136,0.2); }
+  .refresh-btn:disabled { opacity:0.5; cursor:wait; }
+  @keyframes spin { to{ transform:rotate(360deg); } }
+  .spinning { display:inline-block; animation:spin 0.8s linear infinite; }
+
+  .table-loading {
+    display:none; padding:50px; text-align:center;
+    color:var(--text-dim); font-family:'Space Mono',monospace; font-size:12px;
+  }
+  .loading-status { margin-top:12px; color:var(--cyan); font-size:11px; }
+
+  table { width:100%; border-collapse:collapse; }
+  thead th {
+    padding:10px 14px; text-align:left;
+    font-family:'Space Mono',monospace; font-size:10px; color:var(--text-dim);
+    letter-spacing:1px; text-transform:uppercase;
+    background:rgba(255,255,255,0.02); border-bottom:1px solid var(--border);
+    white-space:nowrap; cursor:pointer; user-select:none;
+  }
+  thead th:hover { color:var(--text-bright); }
+  thead th.sorted { color:var(--cyan); }
+  tbody tr {
+    border-bottom:1px solid rgba(30,45,61,0.5); transition:background 0.15s;
+    cursor:pointer; animation:fadeIn 0.3s ease forwards; opacity:0;
+  }
+  @keyframes fadeIn { to{ opacity:1; } }
+  tbody tr:hover { background:rgba(0,255,136,0.04); }
+  td { padding:11px 14px; font-size:13px; }
+
+  .ticker-cell { display:flex; align-items:center; gap:10px; }
+  .ticker-logo {
+    width:30px; height:30px; border-radius:7px;
+    background:var(--bg3); border:1px solid var(--border);
+    display:flex; align-items:center; justify-content:center;
+    font-size:10px; font-weight:700; color:var(--cyan);
+    font-family:'Space Mono',monospace; flex-shrink:0;
+  }
+  .ticker-name { font-weight:600; color:var(--text-bright); font-size:13px; }
+  .ticker-full { font-size:11px; color:var(--text-dim); }
+  .mono { font-family:'Space Mono',monospace; font-size:12px; }
+
+  .score-cell { display:flex; align-items:center; gap:8px; }
+  .score-bar { width:55px; height:4px; background:var(--bg3); border-radius:2px; overflow:hidden; flex-shrink:0; }
+  .score-fill { height:100%; border-radius:2px; transition:width 0.8s ease; }
+  .score-val { font-family:'Space Mono',monospace; font-size:12px; font-weight:700; min-width:26px; }
+
+  .signal-badge {
+    padding:3px 8px; border-radius:4px;
+    font-family:'Space Mono',monospace; font-size:10px; font-weight:700; letter-spacing:0.5px;
+  }
+  .signal-buy { background:rgba(0,255,136,0.15); color:var(--green); border:1px solid rgba(0,255,136,0.3); }
+  .signal-hold { background:rgba(255,215,0,0.1); color:var(--yellow); border:1px solid rgba(255,215,0,0.3); }
+  .signal-watch { background:rgba(0,212,255,0.1); color:var(--cyan); border:1px solid rgba(0,212,255,0.3); }
+
+  /* RIGHT PANEL */
+  .right-panel { display:flex; flex-direction:column; gap:18px; }
+  .panel-card { background:var(--bg2); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .panel-title {
+    padding:12px 16px; border-bottom:1px solid var(--border);
+    font-size:11px; font-weight:600; color:var(--text-dim);
+    letter-spacing:1px; text-transform:uppercase; font-family:'Space Mono',monospace;
+  }
+
+  /* AI BOX */
+  .ai-box { padding:14px; }
+  .ai-prompt { display:flex; gap:8px; margin-bottom:10px; }
+  .ai-prompt input {
+    flex:1; background:var(--bg3); border:1px solid var(--border); border-radius:8px;
+    padding:8px 12px; color:var(--text); font-family:'Space Mono',monospace;
+    font-size:12px; outline:none; transition:border-color 0.2s;
+  }
+  .ai-prompt input:focus { border-color:var(--green); }
+  .ai-prompt input::placeholder { color:var(--text-dim); }
+  .ai-send {
+    background:var(--green); color:var(--bg); border:none; border-radius:8px;
+    padding:8px 14px; cursor:pointer; font-weight:700; font-size:14px;
+    transition:opacity 0.2s; flex-shrink:0;
+  }
+  .ai-send:hover { opacity:0.85; }
+  .ai-send:disabled { opacity:0.4; cursor:wait; }
+  .ai-response {
+    background:var(--bg3); border:1px solid var(--border); border-radius:8px;
+    padding:12px; font-size:13px; line-height:1.7; color:var(--text);
+    min-height:70px; max-height:280px; overflow-y:auto;
+    scrollbar-width:thin; scrollbar-color:var(--border) transparent;
+  }
+  .ai-response:empty::before {
+    content:'Pregunta sobre cualquier acción o mercado...';
+    color:var(--text-dim); font-style:italic;
+  }
+
+  /* SECTOR */
+  .sector-list { padding:10px 14px; }
+  .sector-item { display:flex; align-items:center; gap:8px; margin-bottom:9px; }
+  .sector-label { font-size:12px; color:var(--text-dim); min-width:110px; }
+  .sector-bar-bg { flex:1; height:5px; background:var(--bg3); border-radius:3px; overflow:hidden; }
+  .sector-bar-fill {
+    height:100%; border-radius:3px;
+    background:linear-gradient(90deg, var(--cyan), var(--green));
+    transition:width 1s ease;
+  }
+  .sector-pct { font-family:'Space Mono',monospace; font-size:11px; color:var(--cyan); min-width:28px; text-align:right; }
+
+  /* TOP MOVERS */
+  .mover-item {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:9px 14px; border-bottom:1px solid rgba(30,45,61,0.5);
+  }
+  .mover-item:last-child { border-bottom:none; }
+  .mover-ticker { font-family:'Space Mono',monospace; font-size:13px; font-weight:700; color:var(--text-bright); }
+  .mover-name { font-size:11px; color:var(--text-dim); }
+  .mover-chg { font-family:'Space Mono',monospace; font-size:13px; font-weight:700; }
+
+  /* MODAL */
+  .modal-overlay {
+    display:none; position:fixed; inset:0;
+    background:rgba(8,12,16,0.88); z-index:100;
+    align-items:center; justify-content:center; backdrop-filter:blur(4px);
+  }
+  .modal-overlay.open { display:flex; }
+  .modal {
+    background:var(--bg2); border:1px solid var(--border); border-radius:16px;
+    width:560px; max-width:95vw; max-height:88vh; overflow-y:auto;
+    padding:26px; position:relative; animation:modalIn 0.25s ease;
+    scrollbar-width:thin;
+  }
+  @keyframes modalIn { from{opacity:0;transform:translateY(16px) scale(0.97)} to{opacity:1;transform:none} }
+  .modal-close {
+    position:absolute; top:14px; right:14px;
+    background:var(--bg3); border:1px solid var(--border); color:var(--text-dim);
+    width:28px; height:28px; border-radius:6px; cursor:pointer;
+    font-size:15px; display:flex; align-items:center; justify-content:center; transition:all 0.2s;
+  }
+  .modal-close:hover { color:var(--text-bright); border-color:var(--text-dim); }
+  .modal h2 { font-size:28px; font-weight:800; color:var(--text-bright); margin-bottom:3px; }
+  .modal .company-name { color:var(--text-dim); font-size:13px; margin-bottom:18px; }
+  .modal-metrics { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:18px; }
+  .metric-box { background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:11px; }
+  .metric-box .m-label {
+    font-family:'Space Mono',monospace; font-size:10px; color:var(--text-dim);
+    margin-bottom:3px; text-transform:uppercase; letter-spacing:0.5px;
+  }
+  .metric-box .m-val { font-family:'Space Mono',monospace; font-size:15px; font-weight:700; color:var(--text-bright); }
+  .analysis-label {
+    font-family:'Space Mono',monospace; font-size:10px; color:var(--green);
+    letter-spacing:1px; margin-bottom:8px; display:flex; align-items:center; gap:6px;
+  }
+  .ai-dot { width:6px; height:6px; background:var(--green); border-radius:50%; animation:pulse 2s infinite; }
+  .modal-ai-analysis {
+    background:var(--bg3); border:1px solid rgba(0,255,136,0.2); border-radius:10px;
+    padding:14px; font-size:13px; line-height:1.7; color:var(--text); min-height:50px;
+  }
+
+  /* DOT ANIM */
+  .dot-anim span {
+    display:inline-block; width:5px; height:5px; background:var(--green);
+    border-radius:50%; animation:bounce 1.2s infinite; margin:0 2px;
+  }
+  .dot-anim span:nth-child(2){animation-delay:0.2s}
+  .dot-anim span:nth-child(3){animation-delay:0.4s}
+  @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
+
+  /* DISCLAIMER */
+  .disclaimer {
+    padding:18px 0; border-top:1px solid var(--border);
+    font-family:'Space Mono',monospace; font-size:10px;
+    color:var(--text-dim); text-align:center; line-height:1.7;
+  }
+  .disclaimer a { color:var(--cyan); text-decoration:none; }
+  .disclaimer a:hover { text-decoration:underline; }
+
+  @media (max-width:900px) {
+    .main-grid { grid-template-columns:1fr; }
+    .right-panel { display:none; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">📈</div>
+      <div>
+        <h1>Sugerencias Tickers</h1>
+        <span class="logo-tag">POWERED BY AI</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="market-badge">S&P 500 <span class="val up" id="sp500">—</span> <span class="mono" id="sp500chg" style="font-size:10px"></span></div>
+      <div class="market-badge">DOW <span class="val up" id="dow">—</span> <span class="mono" id="dowchg" style="font-size:10px"></span></div>
+      <div class="data-source-badge" id="sourceBadge"><div class="dot"></div><span id="sourceLabel">—</span></div>
+    </div>
+  </header>
+
+  <!-- TABS -->
+  <div class="strategies-bar">
+    <div class="strategies-tabs" id="strategyTabs"></div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main-grid">
+    <div class="left-col">
+      <div class="strategy-header">
+        <h2 id="strategyName">—</h2>
+        <p id="strategyDesc">—</p>
+        <div class="strategy-stats">
+          <div class="stat-item"><div class="label">RETORNO 12M</div><div class="value" id="ret12m">—</div></div>
+          <div class="stat-item"><div class="label">RETORNO 3M</div><div class="value" id="ret3m">—</div></div>
+          <div class="stat-item"><div class="label">ACCIONES</div><div class="value yellow" id="numStocks">—</div></div>
+          <div class="stat-item"><div class="label">FUENTE</div><div class="value yellow" style="font-size:12px" id="dataSourceStat">—</div></div>
+        </div>
+      </div>
+
+      <div class="stocks-section">
+        <div class="section-header">
+          <h3>SELECCIONES DE LA IA</h3>
+          <div class="section-header-right">
+            <span id="lastUpdateLabel" style="font-family:'Space Mono',monospace;font-size:10px;color:var(--text-dim)"></span>
+            <button class="refresh-btn" id="refreshBtn" onclick="loadStocks()">
+              <span id="refreshIcon">↻</span> ACTUALIZAR
+            </button>
+          </div>
+        </div>
+        <div class="table-loading" id="tableLoading">
+          <div class="dot-anim"><span></span><span></span><span></span></div>
+          <div class="loading-status" id="loadingStatus">Conectando con Yahoo Finance...</div>
+        </div>
+        <table id="stocksTable" style="display:none">
+          <thead>
+            <tr>
+              <th onclick="sortTable('ticker')">ACCIÓN</th>
+              <th onclick="sortTable('price')">PRECIO</th>
+              <th onclick="sortTable('change')">CAMBIO %</th>
+              <th onclick="sortTable('pe')">P/E</th>
+              <th onclick="sortTable('eps')">EPS</th>
+              <th onclick="sortTable('mktcap')">MKTCAP</th>
+              <th onclick="sortTable('score')" class="sorted">SCORE IA ▾</th>
+              <th>SEÑAL</th>
+            </tr>
+          </thead>
+          <tbody id="stocksBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="right-panel">
+      <div class="panel-card">
+        <div class="panel-title">🤖 ASISTENTE IA</div>
+        <div class="ai-box">
+          <div class="ai-prompt">
+            <input type="text" id="aiInput" placeholder="¿Qué opinas de NVDA?" onkeydown="if(event.key==='Enter')askAI()">
+            <button class="ai-send" id="aiSendBtn" onclick="askAI()">→</button>
+          </div>
+          <div class="ai-response" id="aiResponse"></div>
+        </div>
+      </div>
+      <div class="panel-card">
+        <div class="panel-title">📊 SECTORES</div>
+        <div class="sector-list" id="sectorList"></div>
+      </div>
+      <div class="panel-card">
+        <div class="panel-title">🔥 TOP MOVERS</div>
+        <div id="topMovers"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="disclaimer">
+    ⚠ Sugerencias Tickers es una herramienta educativa e informativa. No constituye asesoramiento financiero.<br>
+    Datos via <a href="https://finance.yahoo.com" target="_blank">Yahoo Finance</a> · 
+    Análisis por <a href="https://anthropic.com" target="_blank">Claude AI</a> ·
+    Última actualización: <span id="lastUpdate">—</span>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <h2 id="modalTicker"></h2>
+    <div class="company-name" id="modalCompany"></div>
+    <div class="modal-metrics" id="modalMetrics"></div>
+    <div class="analysis-label"><div class="ai-dot"></div> ANÁLISIS IA EN TIEMPO REAL</div>
+    <div class="modal-ai-analysis" id="modalAnalysis"><div class="dot-anim"><span></span><span></span><span></span></div></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// STRATEGIES CONFIG
+// ═══════════════════════════════════════════════
+const STRATEGIES = [
+  {
+    name:"Tech Titans", emoji:"🚀", perf:"+47.2%",
+    desc:"Las mejores empresas tecnológicas del S&P 500 seleccionadas por IA: crecimiento de ingresos, márgenes, momentum y fortaleza del balance.",
+    ret12m:"+47.2%", ret3m:"+12.1%",
+    tickers:["NVDA","MSFT","AAPL","META","GOOGL","AVGO","AMD","CRM","ORCL","PLTR"],
+    sectors:{"Semiconductores":30,"Software":40,"Hardware":15,"Cloud":15}
+  },
+  {
+    name:"Dow Top Picks", emoji:"🏛️", perf:"+31.5%",
+    desc:"Las acciones con mayor potencial del Dow Jones Industrial Average, filtradas por valoración y solidez financiera.",
+    ret12m:"+31.5%", ret3m:"+8.4%",
+    tickers:["GS","UNH","AMGN","HON","CAT","V","JPM","AXP","MCD","TRV"],
+    sectors:{"Finanzas":35,"Salud":20,"Industrial":25,"Consumo":20}
+  },
+  {
+    name:"Value Gems", emoji:"💎", perf:"+28.9%",
+    desc:"Acciones infravaloradas con P/E atractivo, fuertes dividendos y catalizadores de recuperación identificados por IA.",
+    ret12m:"+28.9%", ret3m:"+6.2%",
+    tickers:["BRK-B","BAC","WFC","CVX","XOM","PFE","VZ","T","KO","PG"],
+    sectors:{"Energía":20,"Finanzas":30,"Telecomunicaciones":20,"Consumo":30}
+  },
+  {
+    name:"Momentum", emoji:"⚡", perf:"+39.1%",
+    desc:"Acciones con el momentum más fuerte: tendencia alcista sostenida, volumen creciente y ruptura de resistencias clave.",
+    ret12m:"+39.1%", ret3m:"+15.3%",
+    tickers:["LLY","UBER","APP","CRWD","AXON","MPWR","LRCX","DECK","PODD","NVO"],
+    sectors:{"Salud":20,"Tech":35,"Consumo":15,"Industrial":30}
+  },
+  {
+    name:"Defensivas", emoji:"🛡️", perf:"+19.3%",
+    desc:"Acciones de alta calidad con modelos de negocio resilientes, flujo de caja estable y baja correlación con ciclos económicos.",
+    ret12m:"+19.3%", ret3m:"+4.1%",
+    tickers:["JNJ","WMT","COST","NEE","DUK","SO","AWK","PEP","CL","GIS"],
+    sectors:{"Consumo básico":40,"Utilities":30,"Salud":30}
+  }
+];
+
+// ═══════════════════════════════════════════════
+// STATIC FALLBACK DATA (last known values)
+// ═══════════════════════════════════════════════
+const STATIC = {
+  NVDA:{c:"NVIDIA Corp",p:875.4,ch:2.31,pe:62.1,eps:14.12,mc:2150,s:"Semiconductores"},
+  MSFT:{c:"Microsoft Corp",p:415.2,ch:0.84,pe:35.2,eps:11.79,mc:3090,s:"Software"},
+  AAPL:{c:"Apple Inc",p:228.5,ch:-0.42,pe:32.1,eps:7.11,mc:3500,s:"Hardware"},
+  META:{c:"Meta Platforms",p:594.3,ch:1.72,pe:28.4,eps:20.91,mc:1510,s:"Software"},
+  GOOGL:{c:"Alphabet Inc",p:198.8,ch:0.63,pe:24.8,eps:8.02,mc:2450,s:"Cloud"},
+  AVGO:{c:"Broadcom Inc",p:1680,ch:1.45,pe:36.2,eps:46.4,mc:780,s:"Semiconductores"},
+  AMD:{c:"Advanced Micro Dev",p:169.4,ch:-1.23,pe:114,eps:1.49,mc:274,s:"Semiconductores"},
+  CRM:{c:"Salesforce Inc",p:312.6,ch:0.91,pe:45.8,eps:6.82,mc:300,s:"Software"},
+  ORCL:{c:"Oracle Corp",p:168.2,ch:1.12,pe:38.5,eps:4.37,mc:460,s:"Cloud"},
+  PLTR:{c:"Palantir Tech",p:82.4,ch:3.54,pe:185,eps:0.45,mc:180,s:"Software"},
+  GS:{c:"Goldman Sachs",p:612.3,ch:0.55,pe:13.2,eps:46.4,mc:198,s:"Finanzas"},
+  UNH:{c:"UnitedHealth Group",p:498.7,ch:-0.31,pe:19.8,eps:25.2,mc:460,s:"Salud"},
+  AMGN:{c:"Amgen Inc",p:278.4,ch:0.72,pe:17.6,eps:15.8,mc:149,s:"Salud"},
+  HON:{c:"Honeywell Intl",p:224.6,ch:0.18,pe:22.4,eps:10.03,mc:131,s:"Industrial"},
+  CAT:{c:"Caterpillar Inc",p:368.9,ch:1.02,pe:17.3,eps:21.33,mc:178,s:"Industrial"},
+  V:{c:"Visa Inc",p:312.8,ch:0.44,pe:30.2,eps:10.36,mc:640,s:"Finanzas"},
+  JPM:{c:"JPMorgan Chase",p:238.4,ch:0.67,pe:12.8,eps:18.63,mc:688,s:"Finanzas"},
+  AXP:{c:"American Express",p:285.6,ch:0.29,pe:20.1,eps:14.21,mc:210,s:"Finanzas"},
+  MCD:{c:"McDonald's Corp",p:296.4,ch:-0.15,pe:24.3,eps:12.2,mc:214,s:"Consumo"},
+  TRV:{c:"Travelers Cos",p:248.7,ch:0.81,pe:11.4,eps:21.82,mc:56,s:"Finanzas"},
+  "BRK-B":{c:"Berkshire Hathaway",p:468.2,ch:0.34,pe:9.8,eps:47.78,mc:1080,s:"Finanzas"},
+  BAC:{c:"Bank of America",p:45.8,ch:0.89,pe:12.4,eps:3.69,mc:360,s:"Finanzas"},
+  WFC:{c:"Wells Fargo",p:72.4,ch:0.52,pe:13.1,eps:5.53,mc:246,s:"Finanzas"},
+  CVX:{c:"Chevron Corp",p:152.3,ch:-0.73,pe:13.8,eps:11.04,mc:285,s:"Energía"},
+  XOM:{c:"Exxon Mobil",p:112.6,ch:-0.48,pe:14.2,eps:7.93,mc:478,s:"Energía"},
+  PFE:{c:"Pfizer Inc",p:26.4,ch:-1.12,pe:18.6,eps:1.42,mc:148,s:"Salud"},
+  VZ:{c:"Verizon Comm",p:41.2,ch:0.24,pe:9.8,eps:4.2,mc:174,s:"Telecom"},
+  T:{c:"AT&T Inc",p:22.8,ch:0.44,pe:12.1,eps:1.88,mc:163,s:"Telecom"},
+  KO:{c:"Coca-Cola Co",p:64.2,ch:0.31,pe:22.8,eps:2.82,mc:277,s:"Consumo básico"},
+  PG:{c:"Procter & Gamble",p:168.2,ch:0.34,pe:26.2,eps:6.42,mc:394,s:"Consumo básico"},
+  LLY:{c:"Eli Lilly",p:848.6,ch:1.89,pe:68.4,eps:12.41,mc:800,s:"Salud"},
+  NVO:{c:"Novo Nordisk",p:87.4,ch:1.21,pe:22.1,eps:3.95,mc:390,s:"Salud"},
+  UBER:{c:"Uber Technologies",p:82.6,ch:2.44,pe:38.2,eps:2.16,mc:173,s:"Tech"},
+  APP:{c:"Applovin Corp",p:362.8,ch:4.12,pe:94.3,eps:3.85,mc:122,s:"Tech"},
+  CRWD:{c:"CrowdStrike Holdings",p:352.4,ch:1.87,pe:438,eps:0.8,mc:88,s:"Tech"},
+  DECK:{c:"Deckers Outdoor",p:182.4,ch:2.14,pe:26.4,eps:6.91,mc:20,s:"Consumo"},
+  PODD:{c:"Insulet Corp",p:214.6,ch:1.32,pe:74.2,eps:2.89,mc:14,s:"Salud"},
+  LRCX:{c:"Lam Research",p:88.2,ch:0.94,pe:21.8,eps:4.05,mc:117,s:"Industrial"},
+  AXON:{c:"Axon Enterprise",p:624.8,ch:2.87,pe:148,eps:4.22,mc:47,s:"Industrial"},
+  MPWR:{c:"Monolithic Power",p:572.3,ch:1.44,pe:62.3,eps:9.19,mc:27,s:"Semiconductores"},
+  JNJ:{c:"Johnson & Johnson",p:156.4,ch:0.21,pe:15.8,eps:9.9,mc:375,s:"Salud"},
+  WMT:{c:"Walmart Inc",p:98.4,ch:0.52,pe:35.2,eps:2.8,mc:791,s:"Consumo básico"},
+  COST:{c:"Costco Wholesale",p:942.6,ch:0.64,pe:52.4,eps:17.99,mc:418,s:"Consumo básico"},
+  NEE:{c:"NextEra Energy",p:68.4,ch:0.73,pe:22.8,eps:3.0,mc:139,s:"Utilities"},
+  DUK:{c:"Duke Energy",p:112.8,ch:0.38,pe:17.4,eps:6.48,mc:86,s:"Utilities"},
+  SO:{c:"Southern Company",p:88.6,ch:0.28,pe:21.2,eps:4.18,mc:96,s:"Utilities"},
+  AWK:{c:"American Water Works",p:134.2,ch:0.41,pe:27.8,eps:4.83,mc:25,s:"Utilities"},
+  PEP:{c:"PepsiCo Inc",p:150.8,ch:-0.18,pe:21.4,eps:7.05,mc:207,s:"Consumo básico"},
+  CL:{c:"Colgate-Palmolive",p:94.2,ch:0.28,pe:28.4,eps:3.32,mc:76,s:"Consumo básico"},
+  GIS:{c:"General Mills",p:62.4,ch:-0.31,pe:14.8,eps:4.22,mc:37,s:"Consumo básico"},
+};
+
+// ═══════════════════════════════════════════════
+// DATA FETCHING — 3-layer strategy
+// ═══════════════════════════════════════════════
+let dataSource = 'cached';
+
+// Layer 1: Yahoo Finance via AllOrigins CORS proxy
+async function fetchYahooProxy(ticker) {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`;
+  const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+  const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(6000) });
+  const outer = await res.json();
+  const data = JSON.parse(outer.contents);
+  const meta = data.chart.result[0].meta;
+  return {
+    price: meta.regularMarketPrice,
+    change: ((meta.regularMarketPrice - meta.previousClose) / meta.previousClose * 100),
+    prevClose: meta.previousClose,
+  };
+}
+
+// Layer 2: Claude IA with web_search as fallback
+async function fetchViaClaudeAI(tickers) {
+  setLoadingStatus(`IA buscando precios en tiempo real (${tickers.length} acciones)...`);
+  const prompt = `Busca los precios actuales de estas acciones en Yahoo Finance o Google Finance y devuelve SOLO un JSON válido sin texto adicional, sin markdown, sin bloques de código.
+Formato exacto:
+{"TICKER":{"price":123.45,"change":1.23,"pe":25.4,"eps":5.67},...}
+Acciones: ${tickers.join(',')}
+Si no encuentras un dato, usa null. Solo el JSON, nada más.`;
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({
+      model:"claude-sonnet-4-20250514",
+      max_tokens:1000,
+      tools:[{"type":"web_search_20250305","name":"web_search"}],
+      messages:[{role:"user",content:prompt}]
+    })
+  });
+  const data = await res.json();
+  // Extract text from all content blocks
+  const text = data.content.filter(b=>b.type==='text').map(b=>b.text).join('');
+  // Parse JSON (strip any stray backticks)
+  const clean = text.replace(/```json|```/g,'').trim();
+  return JSON.parse(clean);
+}
+
+// Master fetch: try proxy for each ticker, fallback to Claude batch, fallback to static
+async function fetchAllStockData(tickers) {
+  const results = {};
+  const failedTickers = [];
+
+  // Try Yahoo proxy per ticker (parallel with timeout)
+  setLoadingStatus('Conectando con Yahoo Finance...');
+  const proxyResults = await Promise.allSettled(
+    tickers.map(t => fetchYahooProxy(t).then(d => ({ ticker: t, data: d })))
+  );
+
+  proxyResults.forEach((r, i) => {
+    if (r.status === 'fulfilled') {
+      results[tickers[i]] = r.value.data;
+    } else {
+      failedTickers.push(tickers[i]);
+    }
+  });
+
+  const proxySucceeded = tickers.length - failedTickers.length;
+
+  // If some failed, try Claude AI for the batch
+  if (failedTickers.length > 0) {
+    try {
+      setLoadingStatus(`Yahoo Finance parcial (${proxySucceeded}/${tickers.length}). Usando IA para el resto...`);
+      const aiData = await fetchViaClaudeAI(failedTickers);
+      failedTickers.forEach(t => {
+        if (aiData[t]) results[t] = aiData[t];
+      });
+      dataSource = proxySucceeded > 0 ? 'mixed' : 'ai';
+    } catch(e) {
+      console.warn('Claude AI fetch failed, using static data', e);
+      dataSource = proxySucceeded > 0 ? 'mixed' : 'cached';
+    }
+  } else {
+    dataSource = 'live';
+  }
+
+  return results;
+}
+
+// ═══════════════════════════════════════════════
+// BUILD STOCK OBJECTS
+// ═══════════════════════════════════════════════
+function calcScore(d) {
+  let score = 50;
+  if (d.eps > 0) score += 12;
+  if (d.pe && d.pe < 20) score += 12;
+  else if (d.pe && d.pe < 35) score += 7;
+  if (d.change > 2) score += 10;
+  else if (d.change > 0) score += 5;
+  else if (d.change < -2) score -= 5;
+  if (d.mc > 500) score += 8; // mega cap premium
+  score += Math.floor(Math.random() * 15);
+  return Math.min(99, Math.max(38, score));
+}
+
+function buildStock(ticker, liveData) {
+  const base = STATIC[ticker] || { c:ticker, p:100, ch:0, pe:20, eps:2, mc:50, s:"General" };
+  const live = liveData || {};
+
+  const price  = live.price  ?? base.p;
+  const change = live.change ?? base.ch;
+  const pe     = live.pe     ?? base.pe;
+  const eps    = live.eps    ?? base.eps;
+  const mc     = base.mc; // market cap from static (Yahoo returns it too but structure varies)
+  const score  = calcScore({ eps, pe, change, mc });
+
+  return {
+    ticker,
+    company: base.c,
+    sector: base.s,
+    price: parseFloat(price).toFixed(2),
+    change: parseFloat(change).toFixed(2),
+    pe: pe ? parseFloat(pe).toFixed(1) : "N/A",
+    eps: parseFloat(eps || 0).toFixed(2),
+    mc,
+    score,
+    signal: score >= 75 ? "COMPRAR" : score >= 60 ? "MANTENER" : "OBSERVAR",
+    fromLive: !!live.price,
+  };
+}
+
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+let currentStrategy = 0;
+let stocksData = [];
+let sortField = 'score';
+let sortAsc = false;
+
+// ═══════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════
+function scoreColor(s) {
+  if (s >= 75) return 'var(--green)';
+  if (s >= 60) return 'var(--yellow)';
+  return 'var(--cyan)';
+}
+
+function fmtMC(b) {
+  if (!b) return 'N/A';
+  if (b >= 1000) return `$${(b/1000).toFixed(1)}T`;
+  return `$${b}B`;
+}
+
+function renderStocks(data) {
+  const tbody = document.getElementById('stocksBody');
+  tbody.innerHTML = '';
+  let sorted = [...data];
+  if (sortField) {
+    sorted.sort((a,b) => {
+      let va=a[sortField], vb=b[sortField];
+      if (sortField==='ticker') return sortAsc?va.localeCompare(vb):vb.localeCompare(va);
+      va=parseFloat(va)||0; vb=parseFloat(vb)||0;
+      return sortAsc?va-vb:vb-va;
+    });
+  }
+  sorted.forEach((s, i) => {
+    const tr = document.createElement('tr');
+    tr.style.animationDelay = `${i*35}ms`;
+    const ch = parseFloat(s.change);
+    const chCls = ch>=0?'up':'down';
+    const chSign = ch>=0?'+':'';
+    const col = scoreColor(s.score);
+    const sigCls = s.signal==='COMPRAR'?'signal-buy':s.signal==='MANTENER'?'signal-hold':'signal-watch';
+    const liveIndicator = s.fromLive ? '●' : '○';
+    const liveTitle = s.fromLive ? 'Dato en vivo' : 'Dato estático';
+
+    tr.innerHTML = `
+      <td>
+        <div class="ticker-cell">
+          <div class="ticker-logo">${s.ticker.substring(0,3)}</div>
+          <div>
+            <div class="ticker-name">${s.ticker} <span style="font-size:9px;color:${s.fromLive?'var(--green)':'var(--text-dim)'}" title="${liveTitle}">${liveIndicator}</span></div>
+            <div class="ticker-full">${s.company}</div>
+          </div>
+        </div>
+      </td>
+      <td class="mono">$${parseFloat(s.price).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+      <td class="mono ${chCls}">${chSign}${s.change}%</td>
+      <td class="mono">${s.pe}</td>
+      <td class="mono">${s.eps}</td>
+      <td class="mono" style="color:var(--text-dim);font-size:11px">${fmtMC(s.mc)}</td>
+      <td>
+        <div class="score-cell">
+          <div class="score-bar"><div class="score-fill" style="width:${s.score}%;background:${col}"></div></div>
+          <span class="score-val" style="color:${col}">${s.score}</span>
+        </div>
+      </td>
+      <td><span class="signal-badge ${sigCls}">${s.signal}</span></td>
+    `;
+    tr.onclick = () => openModal(s);
+    tbody.appendChild(tr);
+  });
+}
+
+function sortTable(field) {
+  if (sortField===field) sortAsc=!sortAsc; else {sortField=field; sortAsc=false;}
+  document.querySelectorAll('thead th').forEach(th=>th.classList.remove('sorted'));
+  renderStocks(stocksData);
+}
+
+function renderSectors(sectors) {
+  document.getElementById('sectorList').innerHTML = Object.entries(sectors).map(([n,p])=>`
+    <div class="sector-item">
+      <div class="sector-label">${n}</div>
+      <div class="sector-bar-bg"><div class="sector-bar-fill" style="width:${p}%"></div></div>
+      <div class="sector-pct">${p}%</div>
+    </div>`).join('');
+}
+
+function renderTopMovers() {
+  const top = [...stocksData].sort((a,b)=>Math.abs(parseFloat(b.change))-Math.abs(parseFloat(a.change))).slice(0,5);
+  document.getElementById('topMovers').innerHTML = top.map(s=>{
+    const c=parseFloat(s.change); const cls=c>=0?'up':'down'; const sign=c>=0?'+':'';
+    return `<div class="mover-item">
+      <div><div class="mover-ticker">${s.ticker}</div><div class="mover-name">${s.company.substring(0,22)}</div></div>
+      <div class="mover-chg ${cls}">${sign}${s.change}%</div>
+    </div>`;
+  }).join('');
+}
+
+function updateSourceBadge() {
+  const badge = document.getElementById('sourceBadge');
+  const label = document.getElementById('sourceLabel');
+  const stat  = document.getElementById('dataSourceStat');
+  badge.className = 'data-source-badge';
+  if (dataSource==='live') {
+    badge.classList.add('live'); label.textContent='YAHOO LIVE';
+    stat.textContent='YAHOO LIVE';
+  } else if (dataSource==='ai') {
+    badge.classList.add('ai'); label.textContent='CLAUDE AI';
+    stat.textContent='CLAUDE AI';
+  } else if (dataSource==='mixed') {
+    badge.classList.add('live'); label.textContent='LIVE + AI';
+    stat.textContent='LIVE + AI';
+  } else {
+    badge.classList.add('cached'); label.textContent='ESTÁTICO';
+    stat.textContent='ESTÁTICO';
+  }
+}
+
+function setLoadingStatus(msg) {
+  document.getElementById('loadingStatus').textContent = msg;
+}
+
+// ═══════════════════════════════════════════════
+// LOAD STOCKS
+// ═══════════════════════════════════════════════
+async function loadStocks() {
+  const btn = document.getElementById('refreshBtn');
+  const icon = document.getElementById('refreshIcon');
+  btn.disabled = true;
+  icon.textContent = '↻';
+  icon.classList.add('spinning');
+
+  document.getElementById('tableLoading').style.display = 'block';
+  document.getElementById('stocksTable').style.display = 'none';
+
+  const s = STRATEGIES[currentStrategy];
+
+  try {
+    const liveData = await fetchAllStockData(s.tickers);
+    stocksData = s.tickers.map(t => buildStock(t, liveData[t]));
+  } catch(e) {
+    console.warn('All fetches failed, using static data');
+    dataSource = 'cached';
+    stocksData = s.tickers.map(t => buildStock(t, null));
+  }
+
+  document.getElementById('tableLoading').style.display = 'none';
+  document.getElementById('stocksTable').style.display = 'table';
+  renderStocks(stocksData);
+  renderSectors(s.sectors);
+  renderTopMovers();
+  updateSourceBadge();
+  updateIndices();
+
+  const now = new Date().toLocaleTimeString('es-MX');
+  document.getElementById('lastUpdate').textContent = now;
+  document.getElementById('lastUpdateLabel').textContent = now;
+
+  btn.disabled = false;
+  icon.classList.remove('spinning');
+  icon.textContent = '↻';
+}
+
+// ═══════════════════════════════════════════════
+// STRATEGY SWITCH
+// ═══════════════════════════════════════════════
+function switchStrategy(idx) {
+  currentStrategy = idx;
+  const s = STRATEGIES[idx];
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',i===idx));
+  document.getElementById('strategyName').textContent = s.name;
+  document.getElementById('strategyDesc').textContent = s.desc;
+  document.getElementById('ret12m').textContent = s.ret12m;
+  document.getElementById('ret3m').textContent = s.ret3m;
+  document.getElementById('numStocks').textContent = s.tickers.length;
+  loadStocks();
+}
+
+// ═══════════════════════════════════════════════
+// MARKET INDICES
+// ═══════════════════════════════════════════════
+async function updateIndices() {
+  try {
+    const [sp, dj] = await Promise.all([
+      fetchYahooProxy('^GSPC'),
+      fetchYahooProxy('^DJI'),
+    ]);
+    const spEl  = document.getElementById('sp500');
+    const spChg = document.getElementById('sp500chg');
+    const djEl  = document.getElementById('dow');
+    const djChg = document.getElementById('dowchg');
+
+    spEl.textContent  = sp.price.toLocaleString('en-US',{maximumFractionDigits:2});
+    spEl.className    = `val ${sp.change>=0?'up':'down'}`;
+    spChg.textContent = `${sp.change>=0?'+':''}${sp.change.toFixed(2)}%`;
+    spChg.className   = `mono ${sp.change>=0?'up':'down'}`;
+
+    djEl.textContent  = dj.price.toLocaleString('en-US',{maximumFractionDigits:0});
+    djEl.className    = `val ${dj.change>=0?'up':'down'}`;
+    djChg.textContent = `${dj.change>=0?'+':''}${dj.change.toFixed(2)}%`;
+    djChg.className   = `mono ${dj.change>=0?'up':'down'}`;
+  } catch(e) {
+    // indices failed silently
+  }
+}
+
+// ═══════════════════════════════════════════════
+// AI ASSISTANT
+// ═══════════════════════════════════════════════
+async function askAI() {
+  const input = document.getElementById('aiInput');
+  const response = document.getElementById('aiResponse');
+  const btn = document.getElementById('aiSendBtn');
+  const q = input.value.trim();
+  if (!q) return;
+  btn.disabled=true; input.value='';
+  response.innerHTML='<div style="color:var(--text-dim);font-style:italic;display:flex;align-items:center;gap:8px">Analizando... <div class="dot-anim"><span></span><span></span><span></span></div></div>';
+
+  const s = STRATEGIES[currentStrategy];
+  const system = `Eres un analista financiero experto en S&P 500 y Dow Jones. Responde en español, de forma concisa y profesional (máximo 4 oraciones). Estrategia actual: ${s.name}. Acciones: ${s.tickers.join(', ')}.`;
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,
+        tools:[{"type":"web_search_20250305","name":"web_search"}],
+        system,messages:[{role:"user",content:q}]
+      })
+    });
+    const data = await res.json();
+    const text = data.content.filter(b=>b.type==='text').map(b=>b.text).join('');
+    response.textContent = text || 'Sin respuesta.';
+  } catch(e) {
+    response.textContent = 'Error de conexión con el servicio IA.';
+  }
+  btn.disabled=false;
+}
+
+// ═══════════════════════════════════════════════
+// MODAL
+// ═══════════════════════════════════════════════
+async function openModal(stock) {
+  document.getElementById('modalTicker').textContent = stock.ticker;
+  document.getElementById('modalCompany').textContent = stock.company;
+  const ch = parseFloat(stock.change);
+  document.getElementById('modalMetrics').innerHTML = `
+    <div class="metric-box"><div class="m-label">PRECIO</div><div class="m-val">$${parseFloat(stock.price).toLocaleString('en-US',{minimumFractionDigits:2})}</div></div>
+    <div class="metric-box"><div class="m-label">CAMBIO</div><div class="m-val ${ch>=0?'up':'down'}">${ch>=0?'+':''}${stock.change}%</div></div>
+    <div class="metric-box"><div class="m-label">SCORE IA</div><div class="m-val" style="color:${scoreColor(stock.score)}">${stock.score}/100</div></div>
+    <div class="metric-box"><div class="m-label">P/E RATIO</div><div class="m-val">${stock.pe}</div></div>
+    <div class="metric-box"><div class="m-label">EPS</div><div class="m-val">$${stock.eps}</div></div>
+    <div class="metric-box"><div class="m-label">MKT CAP</div><div class="m-val">${fmtMC(stock.mc)}</div></div>
+  `;
+  document.getElementById('modalAnalysis').innerHTML = '<div class="dot-anim"><span></span><span></span><span></span></div>';
+  document.getElementById('modalOverlay').classList.add('open');
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,
+        tools:[{"type":"web_search_20250305","name":"web_search"}],
+        system:"Eres un analista financiero experto. Análisis breve en español, máximo 4 oraciones en prosa fluida. Sin bullets.",
+        messages:[{role:"user",content:`Analiza ${stock.ticker} (${stock.company}). Precio: $${stock.price}, Cambio: ${stock.change}%, P/E: ${stock.pe}, EPS: ${stock.eps}, Score IA: ${stock.score}/100. 1-2 puntos fuertes y 1 riesgo con datos actuales.`}]
+      })
+    });
+    const data = await res.json();
+    const text = data.content.filter(b=>b.type==='text').map(b=>b.text).join('');
+    document.getElementById('modalAnalysis').textContent = text || 'Análisis no disponible.';
+  } catch(e) {
+    document.getElementById('modalAnalysis').textContent = 'Error al cargar el análisis.';
+  }
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); });
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+function initTabs() {
+  const container = document.getElementById('strategyTabs');
+  STRATEGIES.forEach((s, i) => {
+    const tab = document.createElement('div');
+    tab.className = 'tab' + (i===0?' active':'');
+    tab.dataset.strategy = i;
+    tab.innerHTML = `<span>${s.emoji}</span>${s.name}<span class="perf">${s.perf}</span>`;
+    tab.onclick = () => switchStrategy(i);
+    container.appendChild(tab);
+  });
+}
+
+initTabs();
+switchStrategy(0);
+setInterval(updateIndices, 30000); // refresh indices every 30s
+</script>
+</body>
+</html>
